@@ -1,10 +1,51 @@
+# prevents error: could not build the map_hash, you should increase map_hash_bucket_size: 64
+map_hash_bucket_size 192;
+map $http_user_agent $suspicious_agent {
+    default 0;
+    "Suspicious" 1;
+}
+
+# NB: geo only works in http context
+# geo is like map, but for acting on ip subnets; see http://wiki.nginx.org/HttpGeoModule
+geo $suspicious_ip {
+  default 0;
+  # block these IPs (for test purposes)
+  127.0.0.0/16 1;
+}
+
 server {
 	root /usr/share/nginx/www;
 	index index.html index.htm;
-
-        listen 8000;
-
-	# Make site accessible from http://localhost/
 	server_name localhost;
+  listen 8000;
 
+  # equivalent to the following (invalid) conditional:
+  #
+  # if ($suspicious_ip = 1 && ($suspicious_agent = 1 || $request_method = HEAD) {
+  #   return 403;
+  # }
+  #
+  # adapted from http://rosslawley.co.uk/2010/01/nginx-how-to-multiple-if-statements/
+
+  set $suspicious_request 0;
+
+  if ($suspicious_agent = 1) {
+     set $suspicious_request 1;
+  }
+  if ($request_method = HEAD) {
+      set $suspicious_request 1;
+  }
+  
+  set $deny 1;
+  
+  if ($suspicious_ip = 0) {
+      set $deny 0;
+  }
+  if ($suspicious_request = 0) {
+      set $deny 0;
+  }
+  
+  if ($deny = 1) {
+      return 403;
+  }
 }
